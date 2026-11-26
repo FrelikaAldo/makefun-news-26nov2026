@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -269,6 +270,37 @@ STORIES = [
     dict(role="list", region="AMERICAS", field="TARIFFS",
          headline="White House proposes 20-40% tariffs on 14 partners",
          detail="China steepest: 20% on top of first-term duties"),
+    # ---- ten more, brief 12: fifty stories in all -----------------------
+    dict(role="list", region="SOUTHEAST ASIA", field="TRADE TALKS",
+         headline="Vietnam seeks US trade deal as soon as possible",
+         detail="Washington proposes tariffs of up to 35%"),
+    dict(role="list", region="AMERICAS", field="CREDIT RATING",
+         headline="S&P puts Nvidia's AA rating on CreditWatch negative",
+         detail="Governance risk after Huang's departure"),
+    dict(role="list", region="AMERICAS", field="PIPELINES",
+         headline="Enbridge in talks to sell 6% of Line 3 pipeline",
+         detail="About $1.06bn to Indigenous communities"),
+    dict(role="list", region="EUROPE", field="RETAIL",
+         headline="Pinko forgoes about \u20ac2m by skipping Black Friday",
+         detail="One of several brands protecting margins"),
+    dict(role="list", region="AMERICAS", field="MANUFACTURING",
+         headline="Mexico loses 60,000 factory jobs to tariff uncertainty",
+         detail="More than 60,000 lost since 2023, per LeadStory"),
+    dict(role="list", region="AMERICAS", field="HEALTH POLICY",
+         headline="Trump open to meeting Democrats on healthcare",
+         detail="Names Abdul El-Sayed, sees a middle ground"),
+    dict(role="list", region="EUROPE", field="FINANCING",
+         headline="EU weighs \u20ac45bn loan against a \u20ac70bn shortfall",
+         detail="Leaders meet in Brussels on 2027 financing"),
+    dict(role="list", region="EUROPE", field="SABOTAGE",
+         headline="MI5 and MoD warn UK defence suppliers of sabotage",
+         detail="Warnings issued the same day, per Dawn"),
+    dict(role="list", region="AMERICAS", field="SEMICONDUCTORS",
+         headline="Chip index falls 7.3% as Alphabet and Amazon slide",
+         detail="Philadelphia SOX -7.3%; Alphabet -5%, Amazon -5.4%"),
+    dict(role="list", region="AMERICAS", field="TIDE RECORDS",
+         headline="King tide records fall from San Diego to Santa Barbara",
+         detail="San Francisco waves to 9 m; Pacifica pier collapsed"),
 ]
 
 # every grid cell names its scene kind and its tones in the table above
@@ -279,6 +311,7 @@ SCENES = [s for s in STORIES if s["role"] == "grid"]
 # collisions can be counted and printed
 # --------------------------------------------------------------------------
 TEXT_BOXES = []   # (label, bbox, size)
+STRIP_BOXES = []  # ink bboxes of the also-today strip, for the band-fit check
 SIZES_USED = set()
 _font_cache = {}
 
@@ -941,26 +974,31 @@ def build():
             nx += sepw + gap
 
     # ---- 8. also today --------------------------------------------------
-    col_w = (COL_W - 24) // 3
-    per_col = [7, 6, 6]
+    # brief 12: five columns of six lines at 9 px, inside the same band
+    n_cols = 5
+    gap = 12
+    col_w = (COL_W - (n_cols - 1) * gap) // n_cols
+    per_col = [6] * (n_cols - 1) + [6]          # 30 slots for 29 stories
     i = 0
     for col, n in enumerate(per_col):
-        bx = MARGIN + col * (col_w + 12)
+        bx = MARGIN + col * (col_w + gap)
         for row in range(n):
             if i >= len(listed):
                 break
             s = listed[i]
             i += 1
             by = 910 + row * 11
-            text(d, (bx, by), "\u25aa", F_SANS, 9, REGION_INK[s["region"]])
+            box = text(d, (bx, by), "\u25aa", F_SANS, 9, REGION_INK[s["region"]])
+            STRIP_BOXES.append(box)
             head = s["headline"]
             box_w = col_w - 10
             f = font(F_SANS, 9)
-            while head and f.getlength(head) > box_w:
+            while head and f.getlength(head + "\u2026") > box_w:
                 head = head[:-1]
             if head != s["headline"]:
                 head = head.rstrip(" ,.;:") + "\u2026"
-            text(d, (bx + 9, by), head, F_SANS, 9, INK)
+            box = text(d, (bx + 9, by), head, F_SANS, 9, INK)
+            STRIP_BOXES.append(box)
 
     # ---- 9. footer ------------------------------------------------------
     _r(d, 0, FOOT_Y, W, FOOT_H, INK)
@@ -1007,7 +1045,7 @@ def scene_bitmap(kind, tones, phase):
     return img
 
 
-def measure(img):
+def measure(img) -> dict[str, Any]:
     cells = [s for s in STORIES if s["role"] == "grid"]
 
     # scene ink and 64x64 masks
@@ -1044,6 +1082,11 @@ def measure(img):
     band_px = sum(sum(r) for r in band)
     band_pct = 100.0 * band_px / (W * GRID_H)
 
+    # the also-today strip must sit inside its band and clear the footer
+    strip_bottom = max(b[3] for b in STRIP_BOXES) if STRIP_BOXES else 0
+    strip_top = min(b[1] for b in STRIP_BOXES) if STRIP_BOXES else 0
+    strip_right = max(b[2] for b in STRIP_BOXES) if STRIP_BOXES else 0
+
     collisions = []
     for i in range(len(TEXT_BOXES)):
         for j in range(i + 1, len(TEXT_BOXES)):
@@ -1052,7 +1095,8 @@ def measure(img):
                 collisions.append((TEXT_BOXES[i][0], TEXT_BOXES[j][0], b1, b2))
 
     return dict(inks=inks, worst=worst, worst_pair=worst_pair, closest=pairs,
-                band_pct=band_pct, collisions=collisions)
+                band_pct=band_pct, collisions=collisions,
+                strip_bottom=strip_bottom, strip_right=strip_right)
 
 
 def main():
@@ -1078,30 +1122,39 @@ def main():
     smallest = min(SIZES_USED)
     headline_px = 11
 
-    print("stories on page      = %d    (lead %d + cells %d + list %d)"
-          % (n_stories, n_lead, n_cells, n_list))
-    print("distinct fields      = %d    (regions %d)" % (n_fields, n_regions))
+    strip_fit = (meas["strip_bottom"] <= ALSO_Y + ALSO_H
+                 and meas["strip_bottom"] < FOOT_Y
+                 and meas["strip_right"] <= MARGIN + COL_W)
+
+    print("stories on page      = %d    (must be 50)" % n_stories)
     print("grid cells           = %d" % n_cells)
-    print("smallest type px     = %g" % smallest)
-    print("headline type px     = %d" % headline_px)
-    print("scene ink min        = %d" % min(meas["inks"]))
-    print("worst scene IoU      = %.3f  (%s vs %s)"
-          % (meas["worst"], meas["worst_pair"][0], meas["worst_pair"][1]))
-    print("grid-band ink %%      = %.2f" % meas["band_pct"])
+    print("list stories         = %d    (must be 29)" % n_list)
+    print("distinct fields      = %d    (must be >= 34)" % n_fields)
+    print("distinct regions     = %d    (12)" % n_regions)
+    print("smallest type px     = %g    (must stay 9)" % smallest)
+    print("grid-band ink %%      = %.2f  (must stay 16.05, unchanged from v3)" % meas["band_pct"])
     if meas["collisions"]:
         print("text collisions      = %d" % len(meas["collisions"]))
         for a, b, b1, b2 in meas["collisions"]:
             print("   overlap: %r %s  <->  %r %s" % (a, b1, b, b2))
     else:
         print("text collisions      = 0")
-    print("bytes                = %d" % len(raw))
-    print("md5 run1 / run2      = %s / %s%s"
+    print("strip fits its band  = %s    (strip bottom %d, band ends %d, footer at %d)"
+          % ("yes" if strip_fit else "no", meas["strip_bottom"],
+             ALSO_Y + ALSO_H, FOOT_Y))
+    print("bytes                = %d    (<= 1048576)" % len(raw))
+    print("md5 run / rerun      = %s / %s%s"
           % (old_md5 or "(first run)", new_md5,
              "   MATCH" if old_md5 == new_md5 else "   (rerun to compare)"))
+    print("extra: headline px %d, scene ink min %d, worst scene IoU %.3f (%s vs %s)"
+          % (headline_px, min(meas["inks"]), meas["worst"],
+             meas["worst_pair"][0], meas["worst_pair"][1]))
 
-    ok = (n_stories == 40 and n_fields >= 30 and n_cells == 20 and smallest >= 9
+    ok = (n_stories == 50 and n_cells == 20 and n_list == 29 and n_fields >= 34
+          and n_regions == 12 and n_lead == 1 and smallest >= 9
+          and abs(meas["band_pct"] - 16.05) < 0.005
           and min(meas["inks"]) >= 620 and meas["worst"] < 0.60
-          and 8 <= meas["band_pct"] <= 18 and not meas["collisions"]
+          and not meas["collisions"] and strip_fit
           and len(raw) <= 1048576)
     print("bars                 = %s" % ("ALL PASS" if ok else "FAIL"))
     return 0 if ok else 1

@@ -926,7 +926,12 @@ def build():
 
     sc_x = MARGIN + left_w + 14
     sc_w = W - MARGIN - sc_x
-    draw_lead_scene(d, sc_x, LEAD_Y, sc_w, 240)
+    # The lead scene is drawn on its own canvas and then pasted, the way the cell
+    # scenes already are. A smoke plume that rises above the panel is then cut at the
+    # panel's edge instead of spilling across the ticker above it.
+    sc = Image.new("RGB", (sc_w, 240), P["sky_hot"])
+    draw_lead_scene(ImageDraw.Draw(sc), 0, 0, sc_w, 240)
+    img.paste(sc, (sc_x, LEAD_Y))
 
     # ---- 4. region bar --------------------------------------------------
     counts = {r: 0 for r in BAR_ORDER}

@@ -1,0 +1,16 @@
+{
+  "name": "the-world-today-front-page",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A 1024x1024 newspaper front page for Thursday 26 November 2026, drawn with Pillow and copied with Node.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "draw": "python3 scripts/make_news.py",
+    "start": "node main.ts",
+    "build": "npm run draw && npm start"
+  }
+}

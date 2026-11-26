@@ -1,5 +1,13 @@
 # THE WORLD TODAY, Thursday 26 November 2026
 
+[![make.fun · news-image-20261126](https://make.fun/badge/news-image-20261126.svg)](https://make.fun/bounty/news-image-20261126?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261126)
+[![rank](https://make.fun/badge/news-image-20261126/FrelikaAldo/makefun-news-26nov2026/rank.svg)](https://make.fun/bounty/news-image-20261126/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261126)
+[![reward](https://make.fun/badge/news-image-20261126/FrelikaAldo/makefun-news-26nov2026/reward.svg)](https://make.fun/bounty/news-image-20261126?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261126)
+
+An entry for [make.fun's 26 November 2026 bounty](https://make.fun/bounty/news-image-20261126): one
+image that sums up a day of world news. Forty dated stories, twelve regions, twenty drawn scenes,
+a headline ticker, a region bar, a UTC timeline and the day's numbers.
+
 A 1024 x 1024 newspaper front page for one day, drawn from a fixed list of
 stories with Pillow, then copied to the output directory by a small Node
 program that checks the file first.
